@@ -1,0 +1,11 @@
+{
+    "containerDefinitions": [
+        {
+            "essential": true,
+            "image": "hello-world",
+            "memory": 100,
+            "name": "hello-world"
+        }
+    ],
+    "family": "helloworld"
+}

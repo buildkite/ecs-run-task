@@ -1,0 +1,6 @@
+steps:
+  - name: ":hammer: :aws:"
+    command: scripts/test.sh
+    plugins:
+      docker-compose:
+        run: test
