@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/buildkite/ecs-run-task/runner"
 	"github.com/urfave/cli"
@@ -19,6 +18,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "ecs-run-task"
 	app.Usage = "run a once-off task on ECS and tail the output from cloudwatch"
+	app.UsageText = "ecs-run-task [options] [command override]"
 
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{
@@ -44,8 +44,9 @@ func main() {
 			Usage: "Cloudwatch Log Group Name to write logs to",
 		},
 		cli.StringFlag{
-			Name:  "override",
-			Usage: "allows overriding the command of a service. Should be in the format serviceName:new command to run, eg --override 'hello-world:echo hello'",
+			Name:  "service, s",
+			Value: "",
+			Usage: "[command override]",
 		},
 	}
 
@@ -66,16 +67,10 @@ func main() {
 		r.TaskName = ctx.String("name")
 		r.LogGroupName = ctx.String("log-group")
 
-		if override := ctx.String("override"); override != "" {
-			parts := strings.SplitN(override, ":", 2)
-			if len(parts) != 2 {
-				fmt.Fprintf(os.Stderr, "override must be in the form service:command, got %s", override)
-				os.Exit(1)
-			}
-
+		if args := ctx.Args(); len(args) > 0 {
 			r.Overrides = append(r.Overrides, runner.Override{
-				Service: parts[0],
-				Command: strings.Fields(parts[1]),
+				Service: ctx.String("service"),
+				Command: args,
 			})
 		}
 
