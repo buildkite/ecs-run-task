@@ -19,6 +19,7 @@ func main() {
 	app.Name = "ecs-run-task"
 	app.Usage = "run a once-off task on ECS and tail the output from cloudwatch"
 	app.UsageText = "ecs-run-task [options] [command override]"
+	app.Version = Version
 
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{
@@ -84,7 +85,11 @@ func main() {
 		return nil
 	}
 
-	app.Run(os.Args)
+	err := app.Run(os.Args)
+	if err != nil {
+		log.Println(err.Error())
+		os.Exit(1)
+	}
 }
 
 func requireFlagValue(ctx *cli.Context, name string) {
