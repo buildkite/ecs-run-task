@@ -47,7 +47,7 @@ func main() {
 		cli.StringFlag{
 			Name:  "service, s",
 			Value: "",
-			Usage: "[command override]",
+			Usage: "service to replace cmd for",
 		},
 	}
 

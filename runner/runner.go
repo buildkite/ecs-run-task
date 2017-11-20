@@ -100,7 +100,9 @@ func (r *Runner) Run() error {
 				if len(taskDefinitionInput.ContainerDefinitions) != 1 {
 					return fmt.Errorf("no service provided for override and cant determine default service with %d container definitions", len(taskDefinitionInput.ContainerDefinitions))
 				}
+
 				override.Service = *taskDefinitionInput.ContainerDefinitions[0].Name
+				log.Printf("Assuming override applies to '%s'", override.Service)
 			}
 
 			for _, command := range override.Command {
@@ -120,7 +122,7 @@ func (r *Runner) Run() error {
 	log.Printf("Running task %s", taskDefinition)
 	runResp, err := svc.RunTask(runTaskInput)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to run task: %d", err.Error())
 	}
 
 	taskARNs := []*string{}
