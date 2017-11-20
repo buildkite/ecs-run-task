@@ -79,7 +79,7 @@ func main() {
 			if ec, ok := err.(cli.ExitCoder); ok {
 				return ec
 			}
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
 		return nil
@@ -87,14 +87,14 @@ func main() {
 
 	err := app.Run(os.Args)
 	if err != nil {
-		log.Println(err.Error())
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 }
 
 func requireFlagValue(ctx *cli.Context, name string) {
 	if ctx.String(name) == "" {
-		fmt.Printf("ERROR: Required flag %q isn't set\n\n", name)
+		fmt.Fprintf(os.Stderr, "ERROR: Required flag %q isn't set\n\n", name)
 		cli.ShowAppHelpAndExit(ctx, 1)
 	}
 }
