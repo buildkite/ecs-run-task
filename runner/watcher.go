@@ -79,7 +79,7 @@ func (lw *logWatcher) Watch(ctx context.Context) error {
 	var after int64
 	var err error
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	for {

@@ -18,6 +18,8 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "ecs-run-task"
 	app.Usage = "run a once-off task on ECS and tail the output from cloudwatch"
+	app.UsageText = "ecs-run-task [options] [command override]"
+	app.Version = Version
 
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{
@@ -42,6 +44,11 @@ func main() {
 			Value: "ecs-task-runner",
 			Usage: "Cloudwatch Log Group Name to write logs to",
 		},
+		cli.StringFlag{
+			Name:  "service, s",
+			Value: "",
+			Usage: "service to replace cmd for",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -61,22 +68,33 @@ func main() {
 		r.TaskName = ctx.String("name")
 		r.LogGroupName = ctx.String("log-group")
 
+		if args := ctx.Args(); len(args) > 0 {
+			r.Overrides = append(r.Overrides, runner.Override{
+				Service: ctx.String("service"),
+				Command: args,
+			})
+		}
+
 		if err := r.Run(); err != nil {
 			if ec, ok := err.(cli.ExitCoder); ok {
 				return ec
 			}
-			fmt.Println(err)
+			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
 		return nil
 	}
 
-	app.Run(os.Args)
+	err := app.Run(os.Args)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
 }
 
 func requireFlagValue(ctx *cli.Context, name string) {
 	if ctx.String(name) == "" {
-		fmt.Printf("ERROR: Required flag %q isn't set\n\n", name)
+		fmt.Fprintf(os.Stderr, "ERROR: Required flag %q isn't set\n\n", name)
 		cli.ShowAppHelpAndExit(ctx, 1)
 	}
 }
