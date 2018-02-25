@@ -216,8 +216,7 @@ func (r *Runner) Run() error {
 		log.Printf("Error from ch: %#v", err)
 		// If the error is an exitError, continue processing so that
 		// all of the logs are streamed
-		_, ok := err.(*exitError)
-		if(!ok) {
+		if _, isExit := err.(*exitError); !isExit {
 			cancel()
 			return err
 		}
