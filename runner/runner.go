@@ -214,14 +214,18 @@ func (r *Runner) Run() error {
 	log.Printf("Waiting for exitcode")
 	if err := <-errs; err != nil {
 		log.Printf("Error from ch: %#v", err)
-		cancel()
-		return err
+		// If the error is an exitError, continue processing so that
+		// all of the logs are streamed
+		if _, isExit := err.(*exitError); !isExit {
+			cancel()
+			return err
+		}
 	}
 
 	log.Printf("Waiting for logging to finish")
 	wg.Wait()
 
-	return nil
+	return err
 }
 
 func logStreamName(streamPrefix string, task *ecs.Task, container *ecs.Container) string {
