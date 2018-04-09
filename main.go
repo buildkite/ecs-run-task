@@ -49,6 +49,18 @@ func main() {
 			Value: "",
 			Usage: "service to replace cmd for",
 		},
+		cli.BoolFlag{
+			Name:  "fargate",
+			Usage: "Specified if task is to be run under FARGATE as opposed to EC2",
+		},
+		cli.StringSliceFlag{
+			Name:  "security-group",
+			Usage: "Security groups to launch task in (required for FARGATE). Can be specified multiple times",
+		},
+		cli.StringSliceFlag{
+			Name:  "subnet",
+			Usage: "Subnet to launch task in (required for FARGATE). Can be specified multiple times",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -67,6 +79,9 @@ func main() {
 		r.Cluster = ctx.String("cluster")
 		r.TaskName = ctx.String("name")
 		r.LogGroupName = ctx.String("log-group")
+		r.Fargate = ctx.Bool("fargate")
+		r.SecurityGroups = ctx.StringSlice("security-group")
+		r.Subnets = ctx.StringSlice("subnet")
 
 		if args := ctx.Args(); len(args) > 0 {
 			r.Overrides = append(r.Overrides, runner.Override{

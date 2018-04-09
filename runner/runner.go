@@ -31,6 +31,9 @@ type Runner struct {
 	Region             string
 	Config             *aws.Config
 	Overrides          []Override
+	Fargate            bool
+	SecurityGroups     []string
+	Subnets            []string
 }
 
 func New() *Runner {
@@ -88,6 +91,18 @@ func (r *Runner) Run() error {
 		Overrides: &ecs.TaskOverride{
 			ContainerOverrides: []*ecs.ContainerOverride{},
 		},
+	}
+	if r.Fargate {
+		runTaskInput.LaunchType = aws.String("FARGATE")
+	}
+	if len(r.Subnets) > 0 || len(r.SecurityGroups) > 0 {
+		runTaskInput.NetworkConfiguration = &ecs.NetworkConfiguration{
+			AwsvpcConfiguration: &ecs.AwsVpcConfiguration{
+				Subnets:        awsStrings(r.Subnets),
+				AssignPublicIp: aws.String("ENABLED"),
+				SecurityGroups: awsStrings(r.SecurityGroups),
+			},
+		}
 	}
 
 	for _, override := range r.Overrides {
@@ -331,4 +346,12 @@ type exitError struct {
 
 func (ee *exitError) ExitCode() int {
 	return ee.exitCode
+}
+
+func awsStrings(ss []string) []*string {
+	out := make([]*string, len(ss))
+	for i := range ss {
+		out[i] = &ss[i]
+	}
+	return out
 }
