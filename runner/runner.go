@@ -59,15 +59,13 @@ func (r *Runner) Run() error {
 
 	log.Printf("Setting tasks to use log group %s", r.LogGroupName)
 	for _, def := range taskDefinitionInput.ContainerDefinitions {
-		if def.LogConfiguration == nil {
-			def.LogConfiguration = &ecs.LogConfiguration{
-				LogDriver: aws.String("awslogs"),
-				Options: map[string]*string{
-					"awslogs-group":         aws.String(r.LogGroupName),
-					"awslogs-region":        aws.String(r.Region),
-					"awslogs-stream-prefix": aws.String(streamPrefix),
-				},
-			}
+		def.LogConfiguration = &ecs.LogConfiguration{
+			LogDriver: aws.String("awslogs"),
+			Options: map[string]*string{
+				"awslogs-group":         aws.String(r.LogGroupName),
+				"awslogs-region":        aws.String(r.Region),
+				"awslogs-stream-prefix": aws.String(streamPrefix),
+			},
 		}
 	}
 
