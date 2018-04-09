@@ -20,3 +20,7 @@ go get github.com/buildkite/ecs-run-task
 ```
 
 [aws-vault]: https://github.com/99designs/aws-vault
+
+## Dependendies
+
+This project uses [govendor](https://github.com/kardianos/govendor) for dependency management.
