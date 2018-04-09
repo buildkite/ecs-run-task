@@ -122,7 +122,7 @@ func (r *Runner) Run() error {
 	log.Printf("Running task %s", taskDefinition)
 	runResp, err := svc.RunTask(runTaskInput)
 	if err != nil {
-		return fmt.Errorf("unable to run task: %d", err.Error())
+		return fmt.Errorf("unable to run task: %s", err.Error())
 	}
 
 	taskARNs := []*string{}
