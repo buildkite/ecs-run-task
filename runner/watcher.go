@@ -41,12 +41,14 @@ func (lw *logWatcher) printEventsAfter(ts int64, c context.CancelFunc) (int64, e
 	log.Printf("Printing events after %d", ts)
 
 	// sometimes the stream takes a while to appear
-	log.Printf("Waiting for log stream to start...")
-	for i := 0; i < 300; i++ {
+	log.Print("Waiting for log stream to start...")
+	start := time.Now()
+	for time.Since(start) < 10*time.Minute {
 		streams, err = lw.findStreams()
-		if err != nil || len(streams) == 0 {
-			time.Sleep(time.Second * 2)
+		if len(streams) > 0 {
+			break
 		}
+		time.Sleep(time.Second * 2)
 	}
 
 	if err != nil {
