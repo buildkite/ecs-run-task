@@ -2,11 +2,11 @@ package runner
 
 import (
 	"context"
-	"errors"
 	"log"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	logs "github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 )
 
@@ -34,27 +34,38 @@ func (lw *logWatcher) findStreams() ([]*string, error) {
 	return streams, err
 }
 
-func (lw *logWatcher) printEventsAfter(ts int64, c context.CancelFunc) (int64, error) {
-	var streams []*string
-	var err error
+func (lw *logWatcher) waitForSteams(ctx context.Context) ([]*string, error) {
+	for {
+		select {
+		case <-time.After(2 * time.Second):
+			streams, err := lw.findStreams()
+			if aerr, ok := err.(awserr.Error); ok {
+				if aerr.Code() == "Throttling" {
+					time.Sleep(5 * time.Second)
+					continue
+				}
+			}
+			if err != nil {
+				return nil, err
+			}
+			if len(streams) > 0 {
+				return streams, nil
+			}
 
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+func (lw *logWatcher) printEventsAfter(ctx context.Context, ts int64, c context.CancelFunc) (int64, error) {
 	log.Printf("Printing events after %d", ts)
 
 	// sometimes the stream takes a while to appear
 	log.Print("Waiting for log stream to start...")
-	start := time.Now()
-	for time.Since(start) < 10*time.Minute {
-		streams, err = lw.findStreams()
-		if len(streams) > 0 {
-			break
-		}
-		time.Sleep(time.Second * 2)
-	}
-
+	streams, err := lw.waitForSteams(ctx)
 	if err != nil {
-		return ts, err
-	} else if len(streams) == 0 {
-		return ts, errors.New("No stream found")
+		return 0, err
 	}
 
 	filterInput := &logs.FilterLogEventsInput{
@@ -81,13 +92,13 @@ func (lw *logWatcher) Watch(ctx context.Context) error {
 	var after int64
 	var err error
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
 	for {
 		select {
 		case <-time.After(1 * time.Second):
-			if after, err = lw.printEventsAfter(after, cancel); err != nil {
+			if after, err = lw.printEventsAfter(ctx, after, cancel); err != nil {
 				return err
 			}
 
