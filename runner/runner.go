@@ -34,6 +34,7 @@ type Runner struct {
 	Fargate            bool
 	SecurityGroups     []string
 	Subnets            []string
+	Environment        []string
 }
 
 func New() *Runner {
@@ -122,11 +123,17 @@ func (r *Runner) Run() error {
 				cmds = append(cmds, aws.String(command))
 			}
 
+			env, err := awsKeyValuePairForEnv(os.LookupEnv, r.Environment)
+			if err != nil {
+				return err
+			}
+
 			runTaskInput.Overrides.ContainerOverrides = append(
 				runTaskInput.Overrides.ContainerOverrides,
 				&ecs.ContainerOverride{
-					Command: cmds,
-					Name:    aws.String(override.Service),
+					Command:     cmds,
+					Name:        aws.String(override.Service),
+					Environment: env,
 				},
 			)
 		}
@@ -354,4 +361,29 @@ func awsStrings(ss []string) []*string {
 		out[i] = &ss[i]
 	}
 	return out
+}
+
+func awsKeyValuePairForEnv(lookupEnv func(key string) (string, bool), wanted []string) ([]*ecs.KeyValuePair, error) {
+	var kvp []*ecs.KeyValuePair
+	for _, s := range wanted {
+		parts := strings.SplitN(s, "=", 2)
+		key := parts[0]
+		var value string
+		if len(parts) == 2 {
+			value = parts[1]
+		} else {
+			v2, ok := lookupEnv(parts[0])
+			if !ok {
+				return nil, fmt.Errorf("missing environment variable %q", key)
+			}
+			value = v2
+		}
+
+		kvp = append(kvp, &ecs.KeyValuePair{
+			Name:  &key,
+			Value: &value,
+		})
+	}
+
+	return kvp, nil
 }
