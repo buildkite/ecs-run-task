@@ -225,7 +225,7 @@ func (r *Runner) Run() error {
 	}
 
 	log.Printf("Waiting for exitcode")
-	if err := <-errs; err != nil {
+	if err = <-errs; err != nil {
 		log.Printf("Error from ch: %#v", err)
 		// If the error is an exitError, continue processing so that
 		// all of the logs are streamed
