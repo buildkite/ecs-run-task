@@ -61,6 +61,10 @@ func main() {
 			Name:  "subnet",
 			Usage: "Subnet to launch task in (required for FARGATE). Can be specified multiple times",
 		},
+		cli.StringSliceFlag{
+			Name:  "env, e",
+			Usage: "An environment variable to add in the form `KEY=value` or `KEY` (shorthand for `KEY=$KEY` to pass through an env var from the current host). Can be specified multiple times",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -82,6 +86,7 @@ func main() {
 		r.Fargate = ctx.Bool("fargate")
 		r.SecurityGroups = ctx.StringSlice("security-group")
 		r.Subnets = ctx.StringSlice("subnet")
+		r.Environment = ctx.StringSlice("env")
 
 		if args := ctx.Args(); len(args) > 0 {
 			r.Overrides = append(r.Overrides, runner.Override{
