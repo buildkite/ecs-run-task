@@ -17,7 +17,7 @@ func Parse(file string, env []string) (*ecs.RegisterTaskDefinitionInput, error) 
 	}
 
 	interpolated, err := interpolate.Interpolate(
-		interpolate.EnvFromSlice(env),
+		interpolate.NewSliceEnv(env),
 		string(body),
 	)
 	if err != nil {
