@@ -2,6 +2,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -44,7 +45,7 @@ func New() *Runner {
 	}
 }
 
-func (r *Runner) Run() error {
+func (r *Runner) Run(ctx context.Context) error {
 	taskDefinitionInput, err := parser.Parse(r.TaskDefinitionFile, os.Environ())
 	if err != nil {
 		return err
@@ -74,7 +75,6 @@ func (r *Runner) Run() error {
 	}
 
 	svc := ecs.New(sess)
-	cwl := cloudwatchlogs.New(sess)
 
 	log.Printf("Registering a task for %s", *taskDefinitionInput.Family)
 	resp, err := svc.RegisterTaskDefinition(taskDefinitionInput)
@@ -112,7 +112,7 @@ func (r *Runner) Run() error {
 
 			if override.Service == "" {
 				if len(taskDefinitionInput.ContainerDefinitions) != 1 {
-					return fmt.Errorf("no service provided for override and cant determine default service with %d container definitions", len(taskDefinitionInput.ContainerDefinitions))
+					return fmt.Errorf("No service provided for override and can't determine default service with %d container definitions", len(taskDefinitionInput.ContainerDefinitions))
 				}
 
 				override.Service = *taskDefinitionInput.ContainerDefinitions[0].Name
@@ -142,208 +142,127 @@ func (r *Runner) Run() error {
 	log.Printf("Running task %s", taskDefinition)
 	runResp, err := svc.RunTask(runTaskInput)
 	if err != nil {
-		return fmt.Errorf("unable to run task: %s", err.Error())
+		return fmt.Errorf("Unable to run task: %s", err.Error())
 	}
 
-	taskARNs := []*string{}
-	for _, t := range runResp.Tasks {
-		taskARNs = append(taskARNs, t.TaskArn)
-	}
-
-	errs := make(chan error)
-	go func() {
-		defer close(errs)
-
-		lw := &logWriter{
-			LogGroupName: r.LogGroupName,
-			StreamPrefix: streamPrefix,
-			Svc:          cwl,
-		}
-
-		err = svc.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
-			Cluster: aws.String(r.Cluster),
-			Tasks:   taskARNs,
-		})
-		if err != nil {
-			errs <- err
-			return
-		}
-
-		output, err := svc.DescribeTasks(&ecs.DescribeTasksInput{
-			Cluster: aws.String(r.Cluster),
-			Tasks:   taskARNs,
-		})
-		if err != nil {
-			errs <- err
-			return
-		}
-
-		for _, task := range output.Tasks {
-			for _, container := range task.Containers {
-				if err := lw.WriteFinished(task, container); err != nil {
-					errs <- err
-					return
-				}
-			}
-		}
-
-		for _, task := range output.Tasks {
-			for _, container := range task.Containers {
-				if *container.ExitCode != 0 {
-					errs <- &exitError{
-						fmt.Errorf(
-							"Container %s exited with %d",
-							*container.Name,
-							*container.ExitCode,
-						),
-						int(*container.ExitCode),
-					}
-				}
-			}
-		}
-	}()
-
+	cwl := cloudwatchlogs.New(sess)
 	var wg sync.WaitGroup
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+	// spawn a log watcher for each container
 	for _, task := range runResp.Tasks {
 		for _, container := range task.Containers {
-			printer := eventPrinter{
-				Task:      task,
-				Container: container,
+			containerId := path.Base(*container.ContainerArn)
+			watcher := &logWatcher{
+				LogGroupName:   r.LogGroupName,
+				LogStreamName:  logStreamName(streamPrefix, container, task),
+				CloudWatchLogs: cwl,
+
+				// watch for the finish message to terminate the logger
+				Printer: func(ev *cloudwatchlogs.FilteredLogEvent) bool {
+					finishedPrefix := fmt.Sprintf(
+						"Container %s exited with",
+						containerId,
+					)
+					if strings.HasPrefix(*ev.Message, finishedPrefix) {
+						log.Printf("Found container finished message for %s: %s",
+							containerId, *ev.Message)
+						return false
+					}
+					fmt.Println(*ev.Message)
+					return true
+				},
 			}
-			lw := &logWatcher{
-				LogGroup:      r.LogGroupName,
-				LogStreamName: logStreamName(streamPrefix, task, container),
-				Svc:           cwl,
-				Printer:       printer.Print,
-			}
-			log.Printf("Watching %s/%s", lw.LogGroup, lw.LogStreamName)
+
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				if err := lw.Watch(ctx); err != nil {
-					errs <- err
+				if err := watcher.Watch(ctx); err != nil {
+					log.Printf("Log watcher returned error: %v", err)
 				}
 			}()
 		}
 	}
 
-	log.Printf("Waiting for exitcode")
-	if err = <-errs; err != nil {
-		log.Printf("Error from ch: %#v", err)
-		// If the error is an exitError, continue processing so that
-		// all of the logs are streamed
-		if _, isExit := err.(*exitError); !isExit {
-			cancel()
-			return err
+	var taskARNs []*string
+	for _, task := range runResp.Tasks {
+		taskARNs = append(taskARNs, task.TaskArn)
+	}
+
+	err = svc.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
+		Cluster: aws.String(r.Cluster),
+		Tasks:   taskARNs,
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Printf("All tasks have stopped")
+
+	output, err := svc.DescribeTasks(&ecs.DescribeTasksInput{
+		Cluster: aws.String(r.Cluster),
+		Tasks:   taskARNs,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Get the final state of each task and container and write to cloudwatch logs
+	for _, task := range output.Tasks {
+		for _, container := range task.Containers {
+			lw := &logWriter{
+				LogGroupName:   r.LogGroupName,
+				LogStreamName:  logStreamName(streamPrefix, container, task),
+				CloudWatchLogs: cwl,
+			}
+			if err := writeContainerFinishedMessage(ctx, lw, task, container); err != nil {
+				return err
+			}
 		}
 	}
 
-	log.Printf("Waiting for logging to finish")
+	log.Printf("Waiting for logs to finish")
 	wg.Wait()
+
+	// Determine exit code based on the first non-zero exit code
+	for _, task := range output.Tasks {
+		for _, container := range task.Containers {
+			if *container.ExitCode != 0 {
+				return &exitError{
+					fmt.Errorf(
+						"container %s exited with %d",
+						*container.Name,
+						*container.ExitCode,
+					),
+					int(*container.ExitCode),
+				}
+			}
+		}
+	}
 
 	return err
 }
 
-func logStreamName(streamPrefix string, task *ecs.Task, container *ecs.Container) string {
+func logStreamName(logStreamPrefix string, container *ecs.Container, task *ecs.Task) string {
 	return fmt.Sprintf(
 		"%s/%s/%s",
-		streamPrefix,
+		logStreamPrefix,
 		*container.Name,
 		path.Base(*task.TaskArn),
 	)
 }
 
-type eventPrinter struct {
-	Task      *ecs.Task
-	Container *ecs.Container
-}
-
-func (p *eventPrinter) Print(ev *cloudwatchlogs.FilteredLogEvent, cancel context.CancelFunc) {
-	finishedPrefix := fmt.Sprintf(
-		"Container %s exited with",
-		path.Base(*p.Container.ContainerArn),
-	)
-
-	if strings.HasPrefix(*ev.Message, finishedPrefix) {
-		log.Printf("Finished: %s", *ev.Message)
-		cancel()
-		return
+func writeContainerFinishedMessage(ctx context.Context, w *logWriter, task *ecs.Task, container *ecs.Container) error {
+	if *container.LastStatus != `STOPPED` {
+		return fmt.Errorf("expected container to be STOPPED, got %s", *container.LastStatus)
 	}
-
-	fmt.Println(*ev.Message)
-}
-
-type logWriter struct {
-	Svc          *cloudwatchlogs.CloudWatchLogs
-	LogGroupName string
-	StreamPrefix string
-}
-
-func (lw *logWriter) NextSequenceToken(streamPrefix string) (*string, error) {
-	streams, err := lw.Svc.DescribeLogStreams(&cloudwatchlogs.DescribeLogStreamsInput{
-		LogGroupName:        aws.String(lw.LogGroupName),
-		LogStreamNamePrefix: aws.String(streamPrefix),
-	})
-	if err != nil {
-		return nil, err
+	if container.ExitCode == nil {
+		return errors.New(*container.Reason)
 	}
-	if len(streams.LogStreams) == 0 {
-		return nil, fmt.Errorf("Failed to find stream %s", streamPrefix)
-	}
-	return streams.LogStreams[0].UploadSequenceToken, nil
-}
-
-func (lw *logWriter) WriteFinished(task *ecs.Task, container *ecs.Container) error {
-	streamName := logStreamName(lw.StreamPrefix, task, container)
-	sequence, err := lw.NextSequenceToken(streamName)
-	if err != nil {
-		return err
-	}
-
-	msg := fmt.Sprintf(
+	return w.WriteString(ctx, fmt.Sprintf(
 		"Container %s exited with %d",
 		path.Base(*container.ContainerArn),
 		*container.ExitCode,
-	)
-	_, err = lw.Svc.PutLogEvents(&cloudwatchlogs.PutLogEventsInput{
-		SequenceToken: sequence,
-		LogGroupName:  aws.String(lw.LogGroupName),
-		LogStreamName: aws.String(streamName),
-		LogEvents: []*cloudwatchlogs.InputLogEvent{
-			&cloudwatchlogs.InputLogEvent{
-				Message:   aws.String(msg),
-				Timestamp: aws.Int64(aws.TimeUnixMilli(time.Now())),
-			},
-		},
-	})
-	return err
-}
-
-func createLogGroup(sess *session.Session, logGroup string) error {
-	cwl := cloudwatchlogs.New(sess)
-	groups, err := cwl.DescribeLogGroups(&cloudwatchlogs.DescribeLogGroupsInput{
-		Limit:              aws.Int64(1),
-		LogGroupNamePrefix: aws.String(logGroup),
-	})
-	if err != nil {
-		return err
-	}
-	if len(groups.LogGroups) == 0 {
-		log.Printf("Creating log group %s", logGroup)
-		_, err = cwl.CreateLogGroup(&cloudwatchlogs.CreateLogGroupInput{
-			LogGroupName: aws.String(logGroup),
-		})
-		if err != nil {
-			return err
-		}
-	} else {
-		log.Printf("Log group %s exists", logGroup)
-	}
-	return nil
+	))
 }
 
 type exitError struct {

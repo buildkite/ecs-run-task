@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -95,7 +96,7 @@ func main() {
 			})
 		}
 
-		if err := r.Run(); err != nil {
+		if err := r.Run(context.Background()); err != nil {
 			if ec, ok := err.(cli.ExitCoder); ok {
 				return ec
 			}
