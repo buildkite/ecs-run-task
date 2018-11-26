@@ -1,6 +1,25 @@
 steps:
-  - name: ":hammer: :aws:"
-    command: scripts/test.sh
+  - label: "🔎"
+    command: go test ./...
     plugins:
-      docker-compose:
-        run: test
+      - golang#v2.0.0:
+          version: 1.11.1
+          import: github.com/buildkite/ecs-run-task
+          environment:
+            - GO111MODULE=on
+
+  - wait
+  - label: "🛠"
+    plugins:
+      - golang-cross-compile#v1.3.0:
+          build: "."
+          import: github.com/buildkite/ecs-run-task
+          targets:
+            - version: 1.11.1
+              goos: linux
+              goarch: amd64
+              gomodule: "on"
+            - version: 1.11.1
+              goos: windows
+              goarch: amd64
+              gomodule: "on"
