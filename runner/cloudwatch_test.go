@@ -23,7 +23,7 @@ func TestLogsWatcherTimesOutWhenNoStreamIsFound(t *testing.T) {
 	}
 
 	err := w.Watch(context.Background())
-	if err == nil || err.Error() != `Timed out waiting for stream "my-stream"` {
+	if err == nil || err.Error() != `Timed out waiting for stream my-stream` {
 		t.Fatalf("bad error %v", err)
 	}
 }
