@@ -232,23 +232,22 @@ type logWriter struct {
 	Timeout  time.Duration
 }
 
-func (lw *logWriter) NextSequenceToken() (*string, error) {
+func (lw *logWriter) nextSequenceToken() (*string, error) {
 	log.Printf("Finding next sequence token for stream %s", lw.LogStreamName)
 
 	streams, err := lw.CloudWatchLogs.DescribeLogStreams(&cloudwatchlogs.DescribeLogStreamsInput{
 		LogGroupName:        aws.String(lw.LogGroupName),
 		LogStreamNamePrefix: aws.String(lw.LogStreamName),
+		Descending:          aws.Bool(true),
+		Limit:               aws.Int64(1),
 	})
 	if err != nil {
 		return nil, err
 	} else if len(streams.LogStreams) == 0 {
-		return nil, fmt.Errorf("Failed to find stream %s in group %s", lw.LogStreamName, lw.LogGroupName)
+		return nil, fmt.Errorf("failed to find stream %s in group %s", lw.LogStreamName, lw.LogGroupName)
 	}
 
-	tok := streams.LogStreams[0].UploadSequenceToken
-	log.Printf("Found sequence token of %v", tok)
-
-	return tok, nil
+	return streams.LogStreams[0].UploadSequenceToken, nil
 }
 
 func (lw *logWriter) WriteString(ctx context.Context, msg string) error {
@@ -264,7 +263,7 @@ func (lw *logWriter) WriteString(ctx context.Context, msg string) error {
 		return err
 	}
 
-	sequence, err := lw.NextSequenceToken()
+	sequence, err := lw.nextSequenceToken()
 	if err != nil {
 		return err
 	}
@@ -275,7 +274,7 @@ func (lw *logWriter) WriteString(ctx context.Context, msg string) error {
 		LogGroupName:  aws.String(lw.LogGroupName),
 		LogStreamName: aws.String(lw.LogStreamName),
 		LogEvents: []*cloudwatchlogs.InputLogEvent{
-			&cloudwatchlogs.InputLogEvent{
+			{
 				Message:   aws.String(msg),
 				Timestamp: aws.Int64(aws.TimeUnixMilli(time.Now())),
 			},

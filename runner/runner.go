@@ -185,6 +185,7 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	var taskARNs []*string
 	for _, task := range runResp.Tasks {
+		log.Printf("Waiting until task %s has stopped", *task.TaskArn)
 		taskARNs = append(taskARNs, task.TaskArn)
 	}
 
