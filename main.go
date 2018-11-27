@@ -66,6 +66,10 @@ func main() {
 			Name:  "env, e",
 			Usage: "An environment variable to add in the form `KEY=value` or `KEY` (shorthand for `KEY=$KEY` to pass through an env var from the current host). Can be specified multiple times",
 		},
+		cli.BoolFlag{
+			Name:  "inherit-env, E",
+			Usage: "Inherit all of the environment variables from the calling shell",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -88,6 +92,12 @@ func main() {
 		r.SecurityGroups = ctx.StringSlice("security-group")
 		r.Subnets = ctx.StringSlice("subnet")
 		r.Environment = ctx.StringSlice("env")
+
+		if ctx.Bool("inherit-env") {
+			for _, env := range os.Environ() {
+				r.Environment = append(r.Environment, env)
+			}
+		}
 
 		if args := ctx.Args(); len(args) > 0 {
 			r.Overrides = append(r.Overrides, runner.Override{
