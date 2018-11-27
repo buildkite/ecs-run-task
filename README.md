@@ -25,6 +25,7 @@ GLOBAL OPTIONS:
    --security-group value         Security groups to launch task in (required for FARGATE). Can be specified multiple times
    --subnet value                 Subnet to launch task in (required for FARGATE). Can be specified multiple times
    --env KEY=value, -e KEY=value  An environment variable to add in the form KEY=value or `KEY` (shorthand for `KEY=$KEY` to pass through an env var from the current host). Can be specified multiple times
+   --inherit-env, -E              Inherit all of the environment variables from the calling shell
    --help, -h                     show help
    --version, -v                  print the version
 ```
