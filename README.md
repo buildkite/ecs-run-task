@@ -38,6 +38,28 @@ Hello from Docker!
 ...
 ```
 
+## IAM Permissions
+
+The following IAM permissions are required:
+
+```yaml
+- PolicyName: ECSRunTask
+  PolicyDocument:
+    Version: '2012-10-17'
+    Statement:
+    - Effect: Allow
+      Action:
+        - ecs:RegisterTaskDefinition
+        - ecs:RunTask
+        - ecs:DescribeTasks
+        - logs:DescribeLogGroups
+        - logs:DescribeLogStreams
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+        - logs:FilterLogEvents
+      Resource: '*'
+```
+
 ## Development
 
 We're using Go 1.11 with [modules](https://github.com/golang/go/wiki/Modules).
