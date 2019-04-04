@@ -97,7 +97,7 @@ func main() {
 		r.SecurityGroups = ctx.StringSlice("security-group")
 		r.Subnets = ctx.StringSlice("subnet")
 		r.Environment = ctx.StringSlice("env")
-		r.Count = ctx.Int64("number-of-tasks")
+		r.Count = ctx.Int64("count")
 
 		if ctx.Bool("inherit-env") {
 			for _, env := range os.Environ() {
