@@ -215,6 +215,9 @@ func (r *Runner) Run(ctx context.Context) error {
 				LogStreamName:  logStreamName(streamPrefix, container, task),
 				CloudWatchLogs: cwl,
 			}
+			if container.ExitCode == nil && container.Reason == nil {
+				continue
+			}
 			if err := writeContainerFinishedMessage(ctx, lw, task, container); err != nil {
 				return err
 			}
@@ -240,6 +243,13 @@ func (r *Runner) Run(ctx context.Context) error {
 		}
 	}
 
+	// Otherwise, check the task state
+	for _, task := range output.Tasks {
+		if task.StopCode != nil && task.StoppedReason != nil {
+			return fmt.Errorf("%s: %s", *task.StopCode, *task.StoppedReason)
+		}
+	}
+
 	return err
 }
 
@@ -256,9 +266,9 @@ func writeContainerFinishedMessage(ctx context.Context, w *logWriter, task *ecs.
 	if *container.LastStatus != `STOPPED` {
 		return fmt.Errorf("expected container to be STOPPED, got %s", *container.LastStatus)
 	}
-	if container.ExitCode == nil {
+	if container.ExitCode == nil && container.Reason != nil {
 		return errors.New(*container.Reason)
-	}
+	} 
 	return w.WriteString(ctx, fmt.Sprintf(
 		"Container %s exited with %d",
 		path.Base(*container.ContainerArn),
