@@ -36,6 +36,7 @@ type Runner struct {
 	SecurityGroups     []string
 	Subnets            []string
 	Environment        []string
+	Count              int64
 }
 
 func New() *Runner {
@@ -88,7 +89,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	runTaskInput := &ecs.RunTaskInput{
 		TaskDefinition: aws.String(taskDefinition),
 		Cluster:        aws.String(r.Cluster),
-		Count:          aws.Int64(1),
+		Count:          aws.Int64(r.Count),
 		Overrides: &ecs.TaskOverride{
 			ContainerOverrides: []*ecs.ContainerOverride{},
 		},
