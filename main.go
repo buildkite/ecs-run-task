@@ -70,6 +70,11 @@ func main() {
 			Name:  "inherit-env, E",
 			Usage: "Inherit all of the environment variables from the calling shell",
 		},
+		cli.IntFlag{
+			Name:  "count, C",
+			Value: 1,
+			Usage: "Number of tasks to run",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -92,6 +97,7 @@ func main() {
 		r.SecurityGroups = ctx.StringSlice("security-group")
 		r.Subnets = ctx.StringSlice("subnet")
 		r.Environment = ctx.StringSlice("env")
+		r.Count = ctx.Int64("number-of-tasks")
 
 		if ctx.Bool("inherit-env") {
 			for _, env := range os.Environ() {
