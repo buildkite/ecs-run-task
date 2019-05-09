@@ -37,6 +37,7 @@ type Runner struct {
 	Subnets            []string
 	Environment        []string
 	Count              int64
+	Deregister         bool
 }
 
 func New() *Runner {
@@ -85,6 +86,22 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	taskDefinition := fmt.Sprintf("%s:%d",
 		*resp.TaskDefinition.Family, *resp.TaskDefinition.Revision)
+
+	defer func() {
+		if !r.Deregister {
+			return
+		}
+
+		log.Printf("Deregistering task %s", taskDefinition)
+		_, err := svc.DeregisterTaskDefinition(&ecs.DeregisterTaskDefinitionInput{
+			TaskDefinition: &taskDefinition,
+		})
+		if err != nil {
+			log.Printf("Failed to deregister task %s: %s", taskDefinition, err.Error())
+			return
+		}
+		log.Printf("Successfully deregistered task %s", taskDefinition)
+	}()
 
 	runTaskInput := &ecs.RunTaskInput{
 		TaskDefinition: aws.String(taskDefinition),

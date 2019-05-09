@@ -75,6 +75,10 @@ func main() {
 			Value: 1,
 			Usage: "Number of tasks to run",
 		},
+		cli.BoolFlag{
+			Name:  "deregister",
+			Usage: "Deregister task definition once done",
+		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -98,6 +102,7 @@ func main() {
 		r.Subnets = ctx.StringSlice("subnet")
 		r.Environment = ctx.StringSlice("env")
 		r.Count = ctx.Int64("count")
+		r.Deregister = ctx.Bool("deregister")
 
 		if ctx.Bool("inherit-env") {
 			for _, env := range os.Environ() {
