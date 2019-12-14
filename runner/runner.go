@@ -78,7 +78,7 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	svc := ecs.New(sess)
 
-	log.Printf("Registering a task for %s", *taskDefinitionInput.Family)
+	log.Printf("Registering a task for %v", taskDefinitionInput.Family)
 	resp, err := svc.RegisterTaskDefinition(taskDefinitionInput)
 	if err != nil {
 		return err
