@@ -75,6 +75,10 @@ func main() {
 			Value: 1,
 			Usage: "Number of tasks to run",
 		},
+		cli.StringFlag{
+			Name:  "region, r",
+			Usage: "Reion",
+		},
 		cli.BoolFlag{
 			Name:  "deregister",
 			Usage: "Deregister task definition once done",
@@ -103,6 +107,10 @@ func main() {
 		r.Environment = ctx.StringSlice("env")
 		r.Count = ctx.Int64("count")
 		r.Deregister = ctx.Bool("deregister")
+
+		if r.Region == "" {
+			r.Region = ctx.String("region")
+		}
 
 		if ctx.Bool("inherit-env") {
 			for _, env := range os.Environ() {
