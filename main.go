@@ -77,7 +77,7 @@ func main() {
 		},
 		cli.StringFlag{
 			Name:  "region, r",
-			Usage: "Reion",
+			Usage: "AWS Region",
 		},
 		cli.BoolFlag{
 			Name:  "deregister",

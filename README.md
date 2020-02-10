@@ -27,6 +27,7 @@ GLOBAL OPTIONS:
    --env KEY=value, -e KEY=value  An environment variable to add in the form KEY=value or `KEY` (shorthand for `KEY=$KEY` to pass through an env var from the current host). Can be specified multiple times
    --inherit-env, -E              Inherit all of the environment variables from the calling shell
    --count value, -C value        Number of tasks to run (default: 1)
+   --region value, -r value       AWS Region
    --deregister                   Deregister task definition once done
    --help, -h                     show help
    --version, -v                  print the version
