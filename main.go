@@ -8,7 +8,7 @@ import (
 	"os"
 
 	"github.com/buildkite/ecs-run-task/runner"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 var (
@@ -23,63 +23,63 @@ func main() {
 	app.Version = Version
 
 	app.Flags = []cli.Flag{
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:  "debug",
 			Usage: "Show debugging information",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "file, f",
 			Usage: "Task definition file in JSON or YAML",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "name, n",
 			Usage: "Task name",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "cluster, c",
 			Value: "default",
 			Usage: "ECS cluster name",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "log-group, l",
 			Value: "ecs-task-runner",
 			Usage: "Cloudwatch Log Group Name to write logs to",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "service, s",
 			Value: "",
 			Usage: "service to replace cmd for",
 		},
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:  "fargate",
 			Usage: "Specified if task is to be run under FARGATE as opposed to EC2",
 		},
-		cli.StringSliceFlag{
+		&cli.StringSliceFlag{
 			Name:  "security-group",
 			Usage: "Security groups to launch task in (required for FARGATE). Can be specified multiple times",
 		},
-		cli.StringSliceFlag{
+		&cli.StringSliceFlag{
 			Name:  "subnet",
 			Usage: "Subnet to launch task in (required for FARGATE). Can be specified multiple times",
 		},
-		cli.StringSliceFlag{
+		&cli.StringSliceFlag{
 			Name:  "env, e",
 			Usage: "An environment variable to add in the form `KEY=value` or `KEY` (shorthand for `KEY=$KEY` to pass through an env var from the current host). Can be specified multiple times",
 		},
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:  "inherit-env, E",
 			Usage: "Inherit all of the environment variables from the calling shell",
 		},
-		cli.IntFlag{
+		&cli.IntFlag{
 			Name:  "count, C",
 			Value: 1,
 			Usage: "Number of tasks to run",
 		},
-		cli.StringFlag{
+		&cli.StringFlag{
 			Name:  "region, r",
 			Usage: "AWS Region",
 		},
-		cli.BoolFlag{
+		&cli.BoolFlag{
 			Name:  "deregister",
 			Usage: "Deregister task definition once done",
 		},
@@ -118,10 +118,10 @@ func main() {
 			}
 		}
 
-		if args := ctx.Args(); len(args) > 0 {
+		if args := ctx.Args(); args.Len() > 0 {
 			r.Overrides = append(r.Overrides, runner.Override{
 				Service: ctx.String("service"),
-				Command: args,
+				Command: args.Slice(),
 			})
 		}
 
