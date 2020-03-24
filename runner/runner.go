@@ -18,11 +18,13 @@ import (
 	"github.com/buildkite/ecs-run-task/parser"
 )
 
+// Override ..
 type Override struct {
 	Service string
 	Command []string
 }
 
+// Runner ..
 type Runner struct {
 	Service            string
 	TaskName           string
@@ -40,6 +42,7 @@ type Runner struct {
 	Deregister         bool
 }
 
+// New creates a new instance of a runner
 func New() *Runner {
 	return &Runner{
 		Region: os.Getenv("AWS_REGION"),
@@ -47,6 +50,7 @@ func New() *Runner {
 	}
 }
 
+// Run runs the runner
 func (r *Runner) Run(ctx context.Context) error {
 	taskDefinitionInput, err := parser.Parse(r.TaskDefinitionFile, os.Environ())
 	if err != nil {
@@ -58,7 +62,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		streamPrefix = fmt.Sprintf("run_task_%d", time.Now().Nanosecond())
 	}
 
-	sess := session.Must(session.NewSession(r.Config))
+	sess := session.Must(session.NewSession(r.Config.WithRegion(r.Region)))
 
 	if err := createLogGroup(sess, r.LogGroupName); err != nil {
 		return err
@@ -124,6 +128,11 @@ func (r *Runner) Run(ctx context.Context) error {
 		}
 	}
 
+	env, err := awsKeyValuePairForEnv(os.LookupEnv, r.Environment)
+	if err != nil {
+		return err
+	}
+
 	for _, override := range r.Overrides {
 		if len(override.Command) > 0 {
 			cmds := []*string{}
@@ -141,11 +150,6 @@ func (r *Runner) Run(ctx context.Context) error {
 				cmds = append(cmds, aws.String(command))
 			}
 
-			env, err := awsKeyValuePairForEnv(os.LookupEnv, r.Environment)
-			if err != nil {
-				return err
-			}
-
 			runTaskInput.Overrides.ContainerOverrides = append(
 				runTaskInput.Overrides.ContainerOverrides,
 				&ecs.ContainerOverride{
@@ -155,6 +159,17 @@ func (r *Runner) Run(ctx context.Context) error {
 				},
 			)
 		}
+	}
+
+	// If no overrides specified, but Environment variables were - should still be overridden
+	if len(r.Overrides) == 0 {
+		runTaskInput.Overrides.ContainerOverrides = append(
+			runTaskInput.Overrides.ContainerOverrides,
+			&ecs.ContainerOverride{
+				Name:        taskDefinitionInput.ContainerDefinitions[0].Name,
+				Environment: env,
+			},
+		)
 	}
 
 	log.Printf("Running task %s", taskDefinition)
@@ -169,7 +184,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	// spawn a log watcher for each container
 	for _, task := range runResp.Tasks {
 		for _, container := range task.Containers {
-			containerId := path.Base(*container.ContainerArn)
+			containerID := path.Base(*container.ContainerArn)
 			watcher := &logWatcher{
 				LogGroupName:   r.LogGroupName,
 				LogStreamName:  logStreamName(streamPrefix, container, task),
@@ -179,11 +194,11 @@ func (r *Runner) Run(ctx context.Context) error {
 				Printer: func(ev *cloudwatchlogs.FilteredLogEvent) bool {
 					finishedPrefix := fmt.Sprintf(
 						"Container %s exited with",
-						containerId,
+						containerID,
 					)
 					if strings.HasPrefix(*ev.Message, finishedPrefix) {
 						log.Printf("Found container finished message for %s: %s",
-							containerId, *ev.Message)
+							containerID, *ev.Message)
 						return false
 					}
 					fmt.Println(*ev.Message)
