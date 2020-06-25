@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go/service/ecs"
@@ -222,12 +223,17 @@ func (r *Runner) Run(ctx context.Context) error {
 		taskARNs = append(taskARNs, task.TaskArn)
 	}
 
-	err = svc.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
-		Cluster: aws.String(r.Cluster),
-		Tasks:   taskARNs,
-	})
-	if err != nil {
-		return err
+	for {
+		werr := svc.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
+			Cluster: aws.String(r.Cluster),
+			Tasks:   taskARNs,
+		})
+		if werr == nil {
+			break
+		}
+		if !isAwsTimeOutError(werr) {
+			return werr
+		}
 	}
 
 	log.Printf("All tasks have stopped")
@@ -274,6 +280,15 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 
 	return err
+}
+
+func isAwsTimeOutError(err error) bool {
+	if aerr, ok := err.(awserr.Error); ok {
+		if aerr.Code() == "ResourceNotReady" {
+			return true
+		}
+	}
+	return false
 }
 
 func logStreamName(logStreamPrefix string, container *ecs.Container, task *ecs.Task) string {
