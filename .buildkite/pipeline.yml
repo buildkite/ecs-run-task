@@ -8,7 +8,6 @@ steps:
           environment:
             - GO111MODULE=on
 
-  - wait
   - label: "🛠"
     plugins:
       - golang-cross-compile#v1.3.0:
