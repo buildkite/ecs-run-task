@@ -1,4 +1,4 @@
-# ecs-run-task
+# ecs-run-task [![Build status](https://badge.buildkite.com/9c381bcb8ed121b115d89e2940a6daeedf0126f21f39ec69bd.svg?branch=master)](https://buildkite.com/buildkite/ecs-run-task)
 
 Runs a once-off ECS task and streams the output via Cloudwatch Logs.
 
