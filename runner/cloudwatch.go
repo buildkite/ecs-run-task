@@ -57,7 +57,7 @@ func (lw *logWaiter) streamExists() (bool, error) {
 					return true
 				}
 			}
-			return lastPage
+			return !lastPage
 		})
 
 	return exists, err
@@ -212,7 +212,7 @@ func (lw *logWatcher) printEventsAfter(ctx context.Context, ts int64) (int64, er
 					ts = *event.Timestamp
 				}
 			}
-			return lastPage
+			return !lastPage
 		})
 	if err != nil {
 		log.Printf("Printed %d events in %v", count, time.Now().Sub(t))
