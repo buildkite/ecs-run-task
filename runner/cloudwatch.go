@@ -54,7 +54,7 @@ func (lw *logWaiter) streamExists() (bool, error) {
 				// return early if we match the log stream
 				if *stream.LogStreamName == lw.LogStreamName {
 					exists = true
-					return true
+					return false
 				}
 			}
 			return !lastPage
