@@ -33,6 +33,7 @@ type Runner struct {
 	Cluster            string
 	LogGroupName       string
 	Region             string
+	PlatformVersion    string
 	Config             *aws.Config
 	Overrides          []Override
 	Fargate            bool
@@ -118,6 +119,9 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 	if r.Fargate {
 		runTaskInput.LaunchType = aws.String("FARGATE")
+		if len(r.PlatformVersion) > 0 {
+			runTaskInput.PlatformVersion = aws.String(r.PlatformVersion)
+		}
 	}
 	if len(r.Subnets) > 0 || len(r.SecurityGroups) > 0 {
 		runTaskInput.NetworkConfiguration = &ecs.NetworkConfiguration{

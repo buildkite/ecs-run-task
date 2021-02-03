@@ -54,6 +54,11 @@ func main() {
 			Name:  "fargate",
 			Usage: "Specified if task is to be run under FARGATE as opposed to EC2",
 		},
+		&cli.StringFlag{
+			Name:  "platform-version, p",
+			Value: "",
+			Usage: "the platform version the task should run (only for FARGATE)",
+		},
 		&cli.StringSliceFlag{
 			Name:  "security-group",
 			Usage: "Security groups to launch task in (required for FARGATE). Can be specified multiple times",
@@ -102,6 +107,7 @@ func main() {
 		r.TaskName = ctx.String("name")
 		r.LogGroupName = ctx.String("log-group")
 		r.Fargate = ctx.Bool("fargate")
+		r.PlatformVersion = ctx.String("platform-version")
 		r.SecurityGroups = ctx.StringSlice("security-group")
 		r.Subnets = ctx.StringSlice("subnet")
 		r.Environment = ctx.StringSlice("env")
