@@ -32,8 +32,16 @@ func main() {
 			Usage: "Task definition file in JSON or YAML",
 		},
 		&cli.StringFlag{
+			Name:  "task, t",
+			Usage: "Existing Task definition Arn",
+		},
+		&cli.StringFlag{
 			Name:  "name, n",
 			Usage: "Task name",
+		},
+		&cli.StringFlag{
+			Name:  "image, i",
+			Usage: "Container image name to replace",
 		},
 		&cli.StringFlag{
 			Name:  "cluster, c",
@@ -80,6 +88,16 @@ func main() {
 			Value: 1,
 			Usage: "Number of tasks to run",
 		},
+		&cli.IntFlag{
+			Name:  "cpu",
+			Value: 0,
+			Usage: "Number of cpu units reserved for the container",
+		},
+		&cli.IntFlag{
+			Name:  "memory",
+			Value: 0,
+			Usage: "Hard limit (in MiB) of memory available to the container",
+		},
 		&cli.StringFlag{
 			Name:  "region, r",
 			Usage: "AWS Region",
@@ -91,10 +109,9 @@ func main() {
 	}
 
 	app.Action = func(ctx *cli.Context) error {
-		requireFlagValue(ctx, "file")
-
-		if _, err := os.Stat(ctx.String("file")); err != nil {
-			return cli.NewExitError(err, 1)
+		if (ctx.String("file") == "" && ctx.String("task") == "") || (ctx.String("file") != "" && ctx.String("task") != "") {
+			fmt.Fprintf(os.Stderr, "ERROR: either --task or --file is needed\n\n")
+			cli.ShowAppHelpAndExit(ctx, 1)
 		}
 
 		if !ctx.Bool("debug") {
@@ -103,7 +120,10 @@ func main() {
 
 		r := runner.New()
 		r.TaskDefinitionFile = ctx.String("file")
+		r.TaskDefinition = ctx.String("task")
 		r.Cluster = ctx.String("cluster")
+		r.Image = ctx.String("image")
+		r.Service = ctx.String("service")
 		r.TaskName = ctx.String("name")
 		r.LogGroupName = ctx.String("log-group")
 		r.Fargate = ctx.Bool("fargate")
@@ -128,6 +148,8 @@ func main() {
 			r.Overrides = append(r.Overrides, runner.Override{
 				Service: ctx.String("service"),
 				Command: args.Slice(),
+				Cpu: ctx.Int64("cpu"),
+				Memory: ctx.Int64("memory"),
 			})
 		}
 
@@ -148,9 +170,3 @@ func main() {
 	}
 }
 
-func requireFlagValue(ctx *cli.Context, name string) {
-	if ctx.String(name) == "" {
-		fmt.Fprintf(os.Stderr, "ERROR: Required flag %q isn't set\n\n", name)
-		cli.ShowAppHelpAndExit(ctx, 1)
-	}
-}

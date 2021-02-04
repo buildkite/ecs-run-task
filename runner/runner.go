@@ -22,6 +22,8 @@ import (
 // Override ..
 type Override struct {
 	Service string
+	Cpu int64
+	Memory int64
 	Command []string
 }
 
@@ -33,7 +35,9 @@ type Runner struct {
 	Cluster            string
 	LogGroupName       string
 	Region             string
+	Image              string
 	PlatformVersion    string
+	TaskDefinition     string
 	Config             *aws.Config
 	Overrides          []Override
 	Fargate            bool
@@ -54,9 +58,47 @@ func New() *Runner {
 
 // Run runs the runner
 func (r *Runner) Run(ctx context.Context) error {
-	taskDefinitionInput, err := parser.Parse(r.TaskDefinitionFile, os.Environ())
-	if err != nil {
-		return err
+	var taskDefinitionInput *ecs.RegisterTaskDefinitionInput
+
+	sess := session.Must(session.NewSession(r.Config.WithRegion(r.Region)))
+
+	svc := ecs.New(sess)
+
+	if len(r.TaskDefinition) > 0 {
+		describeTaskDefinitionOutput, err := svc.DescribeTaskDefinition(
+			&ecs.DescribeTaskDefinitionInput{
+				TaskDefinition: aws.String(r.TaskDefinition),
+			},
+		)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("found existing task definition %s", *describeTaskDefinitionOutput.TaskDefinition.TaskDefinitionArn)
+
+		taskDefinitionInput = &ecs.RegisterTaskDefinitionInput{
+			ContainerDefinitions:    describeTaskDefinitionOutput.TaskDefinition.ContainerDefinitions,
+			Cpu:                     describeTaskDefinitionOutput.TaskDefinition.Cpu,
+			ExecutionRoleArn:        describeTaskDefinitionOutput.TaskDefinition.ExecutionRoleArn,
+			Family:                  aws.String(fmt.Sprintf("%s_run_task", *describeTaskDefinitionOutput.TaskDefinition.Family)),
+			InferenceAccelerators:   describeTaskDefinitionOutput.TaskDefinition.InferenceAccelerators,
+			IpcMode:                 describeTaskDefinitionOutput.TaskDefinition.IpcMode,
+			Memory:                  describeTaskDefinitionOutput.TaskDefinition.Memory,
+			NetworkMode:             describeTaskDefinitionOutput.TaskDefinition.NetworkMode,
+			PidMode:                 describeTaskDefinitionOutput.TaskDefinition.PidMode,
+			PlacementConstraints:    describeTaskDefinitionOutput.TaskDefinition.PlacementConstraints,
+			ProxyConfiguration:      describeTaskDefinitionOutput.TaskDefinition.ProxyConfiguration,
+			RequiresCompatibilities: describeTaskDefinitionOutput.TaskDefinition.RequiresCompatibilities,
+			Tags:                    describeTaskDefinitionOutput.Tags,
+			TaskRoleArn:             describeTaskDefinitionOutput.TaskDefinition.TaskRoleArn,
+			Volumes:                 describeTaskDefinitionOutput.TaskDefinition.Volumes,
+		}
+	} else {
+		var err error
+		taskDefinitionInput, err = parser.Parse(r.TaskDefinitionFile, os.Environ())
+		if err != nil {
+			return err
+		}
 	}
 
 	streamPrefix := r.TaskName
@@ -64,10 +106,23 @@ func (r *Runner) Run(ctx context.Context) error {
 		streamPrefix = fmt.Sprintf("run_task_%d", time.Now().Nanosecond())
 	}
 
-	sess := session.Must(session.NewSession(r.Config.WithRegion(r.Region)))
-
 	if err := createLogGroup(sess, r.LogGroupName); err != nil {
 		return err
+	}
+
+	if len(r.Image) > 0 {
+		log.Printf("Setting task to use image %s", r.Image)
+		if r.Service == "" {
+			log.Printf("No service provided, overriding image of first container definition")
+			taskDefinitionInput.ContainerDefinitions[0].Image = aws.String(r.Image)
+		} else {
+			for _, def := range taskDefinitionInput.ContainerDefinitions {
+				if *def.Name == r.Service {
+					log.Printf("Overriding image for container %s", r.Service)
+					def.Image = aws.String(r.Image)
+				}
+			}
+		}
 	}
 
 	log.Printf("Setting tasks to use log group %s", r.LogGroupName)
@@ -82,7 +137,22 @@ func (r *Runner) Run(ctx context.Context) error {
 		}
 	}
 
-	svc := ecs.New(sess)
+	if r.Fargate {
+		// Require Fargate compability and delete incompatible settings
+		for _, override := range r.Overrides {
+			if override.Cpu > 0 {
+				taskDefinitionInput.Cpu = aws.String(fmt.Sprintf("%d", override.Cpu))
+			}
+			if override.Memory > 0 {
+				taskDefinitionInput.Memory = aws.String(fmt.Sprintf("%d", override.Memory))
+			}
+		}
+		taskDefinitionInput.RequiresCompatibilities = append (taskDefinitionInput.RequiresCompatibilities, aws.String("FARGATE"))
+		// incomplete list of settings that are incompatible with Fargate
+		for _, def := range taskDefinitionInput.ContainerDefinitions {
+			def.DockerSecurityOptions = nil
+		}
+	}
 
 	log.Printf("Registering a task for %s", *taskDefinitionInput.Family)
 	resp, err := svc.RegisterTaskDefinition(taskDefinitionInput)
@@ -127,7 +197,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		runTaskInput.NetworkConfiguration = &ecs.NetworkConfiguration{
 			AwsvpcConfiguration: &ecs.AwsVpcConfiguration{
 				Subnets:        awsStrings(r.Subnets),
-				AssignPublicIp: aws.String("ENABLED"),
+//				AssignPublicIp: aws.String("ENABLED"),
 				SecurityGroups: awsStrings(r.SecurityGroups),
 			},
 		}
@@ -139,7 +209,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 
 	for _, override := range r.Overrides {
-		if len(override.Command) > 0 {
+		if len(override.Command) > 0 || override.Cpu > 0 || override.Memory > 0 {
 			cmds := []*string{}
 
 			if override.Service == "" {
@@ -158,11 +228,19 @@ func (r *Runner) Run(ctx context.Context) error {
 			runTaskInput.Overrides.ContainerOverrides = append(
 				runTaskInput.Overrides.ContainerOverrides,
 				&ecs.ContainerOverride{
-					Command:     cmds,
 					Name:        aws.String(override.Service),
 					Environment: env,
 				},
 			)
+			if len(override.Command) > 0 {
+				runTaskInput.Overrides.ContainerOverrides[0].Command = cmds
+			}
+			if override.Cpu > 0 {
+				runTaskInput.Overrides.ContainerOverrides[0].Cpu = aws.Int64(override.Cpu)
+			}
+			if override.Memory > 0 {
+				runTaskInput.Overrides.ContainerOverrides[0].Memory = aws.Int64(override.Memory)
+			}
 		}
 	}
 

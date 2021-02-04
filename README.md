@@ -17,7 +17,9 @@ COMMANDS:
 GLOBAL OPTIONS:
    --debug                        Show debugging information
    --file value, -f value         Task definition file in JSON or YAML
+   --task value, -t value         Existing Task definition Arn
    --name value, -n value         Task name
+   --image value, -i value        Container image name to replace
    --cluster value, -c value      ECS cluster name (default: "default")
    --log-group value, -l value    Cloudwatch Log Group Name to write logs to (default: "ecs-task-runner")
    --service value, -s value      service to replace cmd for
@@ -28,6 +30,8 @@ GLOBAL OPTIONS:
    --env KEY=value, -e KEY=value  An environment variable to add in the form KEY=value or `KEY` (shorthand for `KEY=$KEY` to pass through an env var from the current host). Can be specified multiple times
    --inherit-env, -E              Inherit all of the environment variables from the calling shell
    --count value, -C value        Number of tasks to run (default: 1)
+   --cpu value                    Number of cpu units reserved for the container (default: 0)
+   --memory value                 Hard limit (in MiB) of memory available to the container (default: 0)
    --region value, -r value       AWS Region
    --deregister                   Deregister task definition once done
    --help, -h                     show help
