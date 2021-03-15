@@ -36,6 +36,7 @@ type Runner struct {
 	Config             *aws.Config
 	Overrides          []Override
 	Fargate            bool
+	PlatformVersion    string
 	SecurityGroups     []string
 	Subnets            []string
 	Environment        []string
@@ -118,6 +119,9 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 	if r.Fargate {
 		runTaskInput.LaunchType = aws.String("FARGATE")
+		if len(r.PlatformVersion) > 0 {
+			runTaskInput.PlatformVersion = aws.String(r.PlatformVersion)
+		}
 	}
 	if len(r.Subnets) > 0 || len(r.SecurityGroups) > 0 {
 		runTaskInput.NetworkConfiguration = &ecs.NetworkConfiguration{
