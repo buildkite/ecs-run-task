@@ -3,10 +3,8 @@ steps:
     command: go test ./...
     plugins:
       - golang#v2.0.0:
-          version: 1.11.1
+          version: "1.16"
           import: github.com/buildkite/ecs-run-task
-          environment:
-            - GO111MODULE=on
 
   - label: "🛠"
     plugins:
@@ -14,11 +12,9 @@ steps:
           build: "."
           import: github.com/buildkite/ecs-run-task
           targets:
-            - version: 1.11.1
+            - version: "1.16"
               goos: linux
               goarch: amd64
-              gomodule: "on"
-            - version: 1.11.1
+            - version: "1.16"
               goos: windows
               goarch: amd64
-              gomodule: "on"
