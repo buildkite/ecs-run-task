@@ -149,11 +149,12 @@ func (lw *logWatcher) Watch(ctx context.Context) error {
 		Timeout:        lw.Timeout,
 	}
 
+	after := time.Now().Unix() * 1000
+
 	if err := waiter.Wait(ctx); err != nil {
 		return err
 	}
 
-	var after int64
 	var err error
 
 	pollInterval := lw.Interval
