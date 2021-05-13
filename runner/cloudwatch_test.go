@@ -188,7 +188,7 @@ func (cw *mockCloudWatchLogs) FilterLogEventsPages(input *cloudwatchlogs.FilterL
 			output.Events = append(output.Events, e)
 		}
 
-		if fn(output, len(cw.filterLogEvents) == 0) {
+		if !fn(output, len(cw.filterLogEvents) == 0) {
 			cw.Unlock()
 			return nil
 		}
