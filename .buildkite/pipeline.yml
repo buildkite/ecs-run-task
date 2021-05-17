@@ -4,3 +4,4 @@ steps:
     plugins:
       docker-compose:
         run: test
+
