@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/buildkite/ecs-run-task/runner"
+	"github.com/DrizlyInc/ecs-run-task/runner"
 	"github.com/urfave/cli/v2"
 )
 
@@ -28,8 +28,8 @@ func main() {
 			Usage: "Show debugging information",
 		},
 		&cli.StringFlag{
-			Name:  "file, f",
-			Usage: "Task definition file in JSON or YAML",
+			Name:  "task, t",
+			Usage: "Task definition string",
 		},
 		&cli.StringFlag{
 			Name:  "name, n",
@@ -79,10 +79,6 @@ func main() {
 			Name:  "region, r",
 			Usage: "AWS Region",
 		},
-		&cli.BoolFlag{
-			Name:  "deregister",
-			Usage: "Deregister task definition once done",
-		},
 	}
 
 	app.Action = func(ctx *cli.Context) error {
@@ -97,7 +93,7 @@ func main() {
 		}
 
 		r := runner.New()
-		r.TaskDefinitionFile = ctx.String("file")
+		r.TaskDefinition = ctx.String("task")
 		r.Cluster = ctx.String("cluster")
 		r.TaskName = ctx.String("name")
 		r.LogGroupName = ctx.String("log-group")
@@ -106,7 +102,6 @@ func main() {
 		r.Subnets = ctx.StringSlice("subnet")
 		r.Environment = ctx.StringSlice("env")
 		r.Count = ctx.Int64("count")
-		r.Deregister = ctx.Bool("deregister")
 
 		if r.Region == "" {
 			r.Region = ctx.String("region")

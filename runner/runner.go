@@ -16,7 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go/service/ecs"
-	"github.com/buildkite/ecs-run-task/parser"
 )
 
 // Override ..
@@ -27,89 +26,107 @@ type Override struct {
 
 // Runner ..
 type Runner struct {
-	Service            string
-	TaskName           string
-	TaskDefinitionFile string
-	Cluster            string
-	LogGroupName       string
-	Region             string
-	Config             *aws.Config
-	Overrides          []Override
-	Fargate            bool
-	SecurityGroups     []string
-	Subnets            []string
-	Environment        []string
-	Count              int64
-	Deregister         bool
+	Service           string
+	TaskName          string
+	TaskDefinition    string
+	TaskDefinitionArn string
+	Cluster           string
+	LogGroupName      string
+	Region            string
+	Config            *aws.Config
+	Overrides         []Override
+	Fargate           bool
+	SecurityGroups    []string
+	Subnets           []string
+	Environment       []string
+	Count             int64
+	Deregister        bool
+
+	ecsconn *ecs.ECS
+	cwlconn *cloudwatchlogs.CloudWatchLogs
 }
 
 // New creates a new instance of a runner
 func New() *Runner {
+	region := os.Getenv("AWS_REGION")
+	config := aws.NewConfig()
+	sess := session.Must(session.NewSession(config.WithRegion(region)))
+
 	return &Runner{
-		Region: os.Getenv("AWS_REGION"),
-		Config: aws.NewConfig(),
+		Region:  region,
+		Config:  config,
+		ecsconn: ecs.New(sess),
+		cwlconn: cloudwatchlogs.New(sess),
 	}
 }
 
 // Run runs the runner
 func (r *Runner) Run(ctx context.Context) error {
-	taskDefinitionInput, err := parser.Parse(r.TaskDefinitionFile, os.Environ())
-	if err != nil {
-		return err
+
+	input := &ecs.DescribeTaskDefinitionInput{
+		TaskDefinition: aws.String(r.TaskDefinition),
 	}
+	result, err := r.ecsconn.DescribeTaskDefinition(input)
+	if err != nil {
+		return handleAwsError(err)
+	}
+
+	taskDefinition := result.TaskDefinition
+	// taskDefinitionInput, err := parser.Parse(r.TaskDefinitionFile, os.Environ())
+	// if err != nil {
+	// 	return err
+	// }
 
 	streamPrefix := r.TaskName
 	if streamPrefix == "" {
 		streamPrefix = fmt.Sprintf("run_task_%d", time.Now().Nanosecond())
 	}
 
-	sess := session.Must(session.NewSession(r.Config.WithRegion(r.Region)))
+	// if err := createLogGroup(sess, r.LogGroupName); err != nil {
+	// 	return err
+	// }
 
-	if err := createLogGroup(sess, r.LogGroupName); err != nil {
-		return err
-	}
+	// log.Printf("Setting tasks to use log group %s", r.LogGroupName)
+	// for _, def := range taskDefinitionInput.ContainerDefinitions {
+	// 	def.LogConfiguration = &ecs.LogConfiguration{
+	// 		LogDriver: aws.String("awslogs"),
+	// 		Options: map[string]*string{
+	// 			"awslogs-group":         aws.String(r.LogGroupName),
+	// 			"awslogs-region":        aws.String(r.Region),
+	// 			"awslogs-stream-prefix": aws.String(streamPrefix),
+	// 		},
+	// 	}
+	// }
 
-	log.Printf("Setting tasks to use log group %s", r.LogGroupName)
-	for _, def := range taskDefinitionInput.ContainerDefinitions {
-		def.LogConfiguration = &ecs.LogConfiguration{
-			LogDriver: aws.String("awslogs"),
-			Options: map[string]*string{
-				"awslogs-group":         aws.String(r.LogGroupName),
-				"awslogs-region":        aws.String(r.Region),
-				"awslogs-stream-prefix": aws.String(streamPrefix),
-			},
-		}
-	}
+	//svc := ecs.New(sess)
 
-	svc := ecs.New(sess)
-
-	log.Printf("Registering a task for %s", *taskDefinitionInput.Family)
-	resp, err := svc.RegisterTaskDefinition(taskDefinitionInput)
-	if err != nil {
-		return err
-	}
-
-	taskDefinition := fmt.Sprintf("%s:%d",
-		*resp.TaskDefinition.Family, *resp.TaskDefinition.Revision)
-
-	defer func() {
-		if !r.Deregister {
-			return
-		}
-
-		log.Printf("Deregistering task %s", taskDefinition)
-		_, err := svc.DeregisterTaskDefinition(&ecs.DeregisterTaskDefinitionInput{
-			TaskDefinition: &taskDefinition,
-		})
-		if err != nil {
-			log.Printf("Failed to deregister task %s: %s", taskDefinition, err.Error())
-			return
-		}
-		log.Printf("Successfully deregistered task %s", taskDefinition)
-	}()
+	// log.Printf("Registering a task for %s", *taskDefinitionInput.Family)
+	// resp, err := svc.RegisterTaskDefinition(taskDefinitionInput)
+	// if err != nil {
+	// 	return err
+	// }
+	//
+	// taskDefinition := fmt.Sprintf("%s:%d",
+	// 	*resp.TaskDefinition.Family, *resp.TaskDefinition.Revision)
+	//
+	// defer func() {
+	// 	if !r.Deregister {
+	// 		return
+	// 	}
+	//
+	// 	log.Printf("Deregistering task %s", taskDefinition)
+	// 	_, err := svc.DeregisterTaskDefinition(&ecs.DeregisterTaskDefinitionInput{
+	// 		TaskDefinition: &taskDefinition,
+	// 	})
+	// 	if err != nil {
+	// 		log.Printf("Failed to deregister task %s: %s", taskDefinition, err.Error())
+	// 		return
+	// 	}
+	// 	log.Printf("Successfully deregistered task %s", taskDefinition)
+	// }()
 
 	runTaskInput := &ecs.RunTaskInput{
-		TaskDefinition: aws.String(taskDefinition),
+		TaskDefinition: aws.String(r.TaskDefinition),
 		Cluster:        aws.String(r.Cluster),
 		Count:          aws.Int64(r.Count),
 		Overrides: &ecs.TaskOverride{
@@ -139,11 +156,11 @@ func (r *Runner) Run(ctx context.Context) error {
 			cmds := []*string{}
 
 			if override.Service == "" {
-				if len(taskDefinitionInput.ContainerDefinitions) != 1 {
-					return fmt.Errorf("No service provided for override and can't determine default service with %d container definitions", len(taskDefinitionInput.ContainerDefinitions))
+				if len(taskDefinition.ContainerDefinitions) != 1 {
+					return fmt.Errorf("No service provided for override and can't determine default service with %d container definitions", len(taskDefinition.ContainerDefinitions))
 				}
 
-				override.Service = *taskDefinitionInput.ContainerDefinitions[0].Name
+				override.Service = *taskDefinition.ContainerDefinitions[0].Name
 				log.Printf("Assuming override applies to '%s'", override.Service)
 			}
 
@@ -167,19 +184,19 @@ func (r *Runner) Run(ctx context.Context) error {
 		runTaskInput.Overrides.ContainerOverrides = append(
 			runTaskInput.Overrides.ContainerOverrides,
 			&ecs.ContainerOverride{
-				Name:        taskDefinitionInput.ContainerDefinitions[0].Name,
+				Name:        taskDefinition.ContainerDefinitions[0].Name,
 				Environment: env,
 			},
 		)
 	}
 
 	log.Printf("Running task %s", taskDefinition)
-	runResp, err := svc.RunTask(runTaskInput)
+	runResp, err := r.ecsconn.RunTask(runTaskInput)
 	if err != nil {
 		return fmt.Errorf("Unable to run task: %s", err.Error())
 	}
 
-	cwl := cloudwatchlogs.New(sess)
+	//cwl := cloudwatchlogs.New(sess)
 	var wg sync.WaitGroup
 
 	// spawn a log watcher for each container
@@ -189,7 +206,7 @@ func (r *Runner) Run(ctx context.Context) error {
 			watcher := &logWatcher{
 				LogGroupName:   r.LogGroupName,
 				LogStreamName:  logStreamName(streamPrefix, container, task),
-				CloudWatchLogs: cwl,
+				CloudWatchLogs: r.cwlconn,
 
 				// watch for the finish message to terminate the logger
 				Printer: func(ev *cloudwatchlogs.FilteredLogEvent) bool {
@@ -224,7 +241,7 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 
 	for {
-		werr := svc.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
+		werr := r.ecsconn.WaitUntilTasksStopped(&ecs.DescribeTasksInput{
 			Cluster: aws.String(r.Cluster),
 			Tasks:   taskARNs,
 		})
@@ -238,7 +255,7 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	log.Printf("All tasks have stopped")
 
-	output, err := svc.DescribeTasks(&ecs.DescribeTasksInput{
+	output, err := r.ecsconn.DescribeTasks(&ecs.DescribeTasksInput{
 		Cluster: aws.String(r.Cluster),
 		Tasks:   taskARNs,
 	})
@@ -252,7 +269,7 @@ func (r *Runner) Run(ctx context.Context) error {
 			lw := &logWriter{
 				LogGroupName:   r.LogGroupName,
 				LogStreamName:  logStreamName(streamPrefix, container, task),
-				CloudWatchLogs: cwl,
+				CloudWatchLogs: r.cwlconn,
 			}
 			if err := writeContainerFinishedMessage(ctx, lw, task, container); err != nil {
 				return err
@@ -354,4 +371,24 @@ func awsKeyValuePairForEnv(lookupEnv func(key string) (string, bool), wanted []s
 	}
 
 	return kvp, nil
+}
+
+func handleAwsError(err error) error {
+	if aerr, ok := err.(awserr.Error); ok {
+		switch aerr.Code() {
+		case ecs.ErrCodeServerException:
+			fmt.Println(ecs.ErrCodeServerException, aerr.Error())
+		case ecs.ErrCodeClientException:
+			fmt.Println(ecs.ErrCodeClientException, aerr.Error())
+		case ecs.ErrCodeInvalidParameterException:
+			fmt.Println(ecs.ErrCodeInvalidParameterException, aerr.Error())
+		default:
+			fmt.Println(aerr.Error())
+		}
+	} else {
+		// Print the error, cast err to awserr.Error to get the Code and
+		// Message from an error.
+		fmt.Println(err.Error())
+	}
+	return err
 }
