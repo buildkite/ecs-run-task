@@ -17,5 +17,5 @@ clean:
 
 .PHONY: release
 release:
-	go get github.com/mitchellh/gox
-	gox -ldflags="$(FLAGS)" -output="build/{{.Dir}}-{{.OS}}-{{.Arch}}" -osarch="linux/amd64 windows/amd64" .
+	go install github.com/mitchellh/gox@latest
+	gox -ldflags="$(FLAGS)" -output="build/{{.Dir}}-{{.OS}}-{{.Arch}}" -os="darwin linux windows" -arch="amd64 arm64" .

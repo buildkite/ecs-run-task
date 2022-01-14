@@ -16,5 +16,14 @@ steps:
               goos: linux
               goarch: amd64
             - version: "1.16"
+              goos: darwin
+              goarch: amd64
+            - version: "1.16"
               goos: windows
               goarch: amd64
+            - version: "1.16"
+              goos: linux
+              goarch: arm64
+            - version: "1.16"
+              goos: darwin
+              goarch: arm64
