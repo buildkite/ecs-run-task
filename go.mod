@@ -9,7 +9,6 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/jmespath/go-jmespath v0.0.0-20180206201540-c2b33e8439af // indirect
 	github.com/kr/pretty v0.1.0 // indirect
-	github.com/mitchellh/gox v1.0.1 // indirect
 	github.com/stretchr/testify v1.2.2 // indirect
 	github.com/urfave/cli/v2 v2.1.1
 	golang.org/x/net v0.0.0-20181114220301-adae6a3d119a // indirect
