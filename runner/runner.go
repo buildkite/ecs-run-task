@@ -305,7 +305,11 @@ func writeContainerFinishedMessage(ctx context.Context, w *logWriter, task *ecs.
 		return fmt.Errorf("expected container to be STOPPED, got %s", *container.LastStatus)
 	}
 	if container.ExitCode == nil {
-		return errors.New(*container.Reason)
+		if container.Reason != nil {
+			return errors.New(*container.Reason)
+		} else {
+			return errors.New(*task.StoppedReason)
+		}
 	}
 	return w.WriteString(ctx, fmt.Sprintf(
 		"Container %s exited with %d",

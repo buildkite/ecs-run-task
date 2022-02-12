@@ -1,6 +1,12 @@
 package runner
 
-import "testing"
+import (
+	"context"
+	"fmt"
+	"testing"
+
+	"github.com/aws/aws-sdk-go/service/ecs"
+)
 
 func TestAWSKeyValuePairForEnvEmpty(t *testing.T) {
 	lookupEnv := func(key string) (string, bool) {
@@ -72,5 +78,61 @@ func TestAWSKeyValuePairForEnvMissing(t *testing.T) {
 	}
 	if err.Error() != `missing environment variable "MISSING_VALUE"` {
 		t.Fatalf("bad error message returned: %q", err.Error())
+	}
+}
+
+func TestWriteContainerFinishedMessageNotStopped(t *testing.T) {
+	ctx := context.Background()
+	w := &logWriter{}
+	task := ecs.Task{}
+	lastStatus := "NOTSTOPPED"
+	container := ecs.Container{
+		LastStatus: &lastStatus,
+	}
+
+	err := writeContainerFinishedMessage(ctx, w, &task, &container)
+
+	if err.Error() != fmt.Sprintf("expected container to be STOPPED, got %s", lastStatus) {
+		t.Fatalf("Expected a specific error, got %s", err)
+	}
+}
+
+func TestWriteContainerFinishedMessageNilExitCodeUseContainerReason(t *testing.T) {
+	ctx := context.Background()
+	w := &logWriter{}
+	task := ecs.Task{}
+	lastStatus := "STOPPED"
+	reason := "some aws container reason"
+	container := ecs.Container{
+		LastStatus: &lastStatus,
+		ExitCode:   nil,
+		Reason:     &reason,
+	}
+
+	err := writeContainerFinishedMessage(ctx, w, &task, &container)
+
+	if err.Error() != reason {
+		t.Fatalf("Expected a specific error, got %s", err)
+	}
+}
+
+func TestWriteContainerFinishedMessageNilExitCodeUseTaskReason(t *testing.T) {
+	ctx := context.Background()
+	w := &logWriter{}
+	reason := "some aws task reason"
+	task := ecs.Task{
+		StoppedReason: &reason,
+	}
+	lastStatus := "STOPPED"
+	container := ecs.Container{
+		LastStatus: &lastStatus,
+		ExitCode:   nil,
+		Reason:     nil,
+	}
+
+	err := writeContainerFinishedMessage(ctx, w, &task, &container)
+
+	if err.Error() != reason {
+		t.Fatalf("Expected a specific error, got %s", err)
 	}
 }
