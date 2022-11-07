@@ -76,6 +76,13 @@ func (r *Runner) Run(ctx context.Context) error {
 
 		log.Printf("found existing task definition %s", *describeTaskDefinitionOutput.TaskDefinition.TaskDefinitionArn)
 
+		// Adding logic to handle when the task definition returns empty array for tags which is causing woolies migrations to return
+		// ClientException: Tags can not be empty
+		tags := describeTaskDefinitionOutput.Tags
+        if len(tags) == 0 {
+            tags = nil
+        }
+
 		taskDefinitionInput = &ecs.RegisterTaskDefinitionInput{
 			ContainerDefinitions:    describeTaskDefinitionOutput.TaskDefinition.ContainerDefinitions,
 			Cpu:                     describeTaskDefinitionOutput.TaskDefinition.Cpu,
@@ -89,7 +96,7 @@ func (r *Runner) Run(ctx context.Context) error {
 			PlacementConstraints:    describeTaskDefinitionOutput.TaskDefinition.PlacementConstraints,
 			ProxyConfiguration:      describeTaskDefinitionOutput.TaskDefinition.ProxyConfiguration,
 			RequiresCompatibilities: describeTaskDefinitionOutput.TaskDefinition.RequiresCompatibilities,
-			Tags:                    describeTaskDefinitionOutput.Tags,
+			Tags:                    tags,
 			TaskRoleArn:             describeTaskDefinitionOutput.TaskDefinition.TaskRoleArn,
 			Volumes:                 describeTaskDefinitionOutput.TaskDefinition.Volumes,
 		}
