@@ -54,10 +54,10 @@ func (lw *logWaiter) streamExists() (bool, error) {
 				// return early if we match the log stream
 				if *stream.LogStreamName == lw.LogStreamName {
 					exists = true
-					return true
+					return false
 				}
 			}
-			return lastPage
+			return !lastPage
 		})
 
 	return exists, err
@@ -149,11 +149,12 @@ func (lw *logWatcher) Watch(ctx context.Context) error {
 		Timeout:        lw.Timeout,
 	}
 
+	after := time.Now().Unix() * 1000
+
 	if err := waiter.Wait(ctx); err != nil {
 		return err
 	}
 
-	var after int64
 	var err error
 
 	pollInterval := lw.Interval
@@ -212,7 +213,7 @@ func (lw *logWatcher) printEventsAfter(ctx context.Context, ts int64) (int64, er
 					ts = *event.Timestamp
 				}
 			}
-			return lastPage
+			return !lastPage
 		})
 	if err != nil {
 		log.Printf("Printed %d events in %v", count, time.Now().Sub(t))

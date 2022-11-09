@@ -12,7 +12,7 @@ USAGE:
    ecs-run-task [options] [command override]
 
 COMMANDS:
-     help, h  Shows a list of commands or help for one command
+   help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
    --debug                        Show debugging information
@@ -68,13 +68,4 @@ The following IAM permissions are required:
         - logs:PutLogEvents
         - logs:FilterLogEvents
       Resource: '*'
-```
-
-## Development
-
-We're using Go 1.11 with [modules](https://github.com/golang/go/wiki/Modules).
-
-```bash
-export GO111MODULE=on
-go get -u github.com/buildkite/ecs-run-task
 ```
