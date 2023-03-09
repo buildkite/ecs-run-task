@@ -99,6 +99,7 @@ func (r *Runner) Run(ctx context.Context) error {
 			Tags:                    tags,
 			TaskRoleArn:             describeTaskDefinitionOutput.TaskDefinition.TaskRoleArn,
 			Volumes:                 describeTaskDefinitionOutput.TaskDefinition.Volumes,
+			EphemeralStorage: 			 describeTaskDefinitionOutput.TaskDefinition.EphemeralStorage,
 		}
 	} else {
 		var err error
